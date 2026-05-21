@@ -1,0 +1,17 @@
+{
+  "python.analysis.extraPaths": [
+    "services/api-gateway",
+    "services/job-posting-service",
+    "services/job-search-service",
+    "services/notification-service",
+    "services/ai-agent-service"
+  ],
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/.next": true,
+    "**/node_modules": true
+  },
+  "[python]": { "editor.defaultFormatter": "ms-python.python" },
+  "[typescriptreact]": { "editor.defaultFormatter": "esbenp.prettier-vscode" }
+}

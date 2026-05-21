@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html { scroll-behavior: smooth; }
+html, body { height: 100%; }
+
+body {
+  background:
+    /* purple glow top-right */
+    radial-gradient(1100px 700px at 88% -8%, rgba(124, 58, 237, 0.18), transparent 60%),
+    /* fuchsia glow bottom-left */
+    radial-gradient(900px 600px at -8% 105%, rgba(217, 70, 239, 0.13), transparent 55%),
+    /* subtle teal accent mid-right for warmth */
+    radial-gradient(700px 500px at 105% 55%, rgba(56, 189, 248, 0.07), transparent 60%),
+    /* soft lavender-slate base — not stark white */
+    linear-gradient(180deg, #eef0fa 0%, #e7eaf5 100%);
+  background-attachment: fixed;
+  color: #111827;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "cv11", "ss01";
+}
+
+/* Custom scrollbar — subtle, modern */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.15);
+  border-radius: 999px;
+  border: 2px solid #fafaff;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(15, 23, 42, 0.25); }
+
+/* Reusable input style */
+.input {
+  @apply w-full border border-gray-200 bg-white rounded-xl px-4 py-2.5 text-sm
+         placeholder:text-gray-400
+         focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand
+         transition;
+}
+
+/* Reusable button — primary brand */
+.btn-primary {
+  @apply inline-flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark
+         text-white font-medium rounded-xl px-5 py-2.5 shadow-sm shadow-brand/20
+         transition active:scale-[0.98];
+}
+
+/* Reusable button — secondary outline */
+.btn-secondary {
+  @apply inline-flex items-center justify-center gap-2 bg-white hover:bg-gray-50
+         text-gray-800 font-medium rounded-xl px-5 py-2.5
+         border border-gray-200 transition active:scale-[0.98];
+}
+
+/* Card baseline — bumped shadow + crisper border for the new (slightly
+   darker) lavender background, so cards pop without feeling heavy. */
+.card {
+  @apply bg-white/95 backdrop-blur-sm border border-white rounded-2xl shadow-soft;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.05),
+    0 10px 30px -10px rgba(99, 102, 241, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+}
