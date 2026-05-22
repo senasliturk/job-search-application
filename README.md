@@ -17,7 +17,7 @@ Large Scale Systems) final, May 2026.
 | Notification Service | https://kariyer-notification.onrender.com |
 | AI Agent Service | https://kariyer-ai-agent.onrender.com |
 
-**Demo video (≤ 5 min):** https://youtu.be/REPLACE_ME
+**Demo video :** (https://stuyasaredu-my.sharepoint.com/:v:/g/personal/21070006035_stu_yasar_edu_tr/IQDw4WqmseyeTaZbBmOZox0cAR0SPzqj-10ZG_wd1yWNAwM?e=hUIgmP&nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJTdHJlYW1XZWJBcHAiLCJyZWZlcnJhbFZpZXciOiJTaGFyZURpYWxvZy1MaW5rIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXcifX0%3D)
 
 ---
 
