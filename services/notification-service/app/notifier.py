@@ -20,9 +20,6 @@ from .config import get_settings
 log = logging.getLogger("notifier")
 settings = get_settings()
 
-# job-search-service internal URL (service name in Docker Compose network)
-_JOB_SEARCH_INTERNAL = "http://job-search-service:8002"
-
 
 def send(
     user_id: str,
@@ -59,7 +56,7 @@ def _save_notification(
     }
     try:
         resp = httpx.post(
-            f"{_JOB_SEARCH_INTERNAL}/api/v1/alerts/internal/notify",
+            f"{settings.JOB_SEARCH_SERVICE_URL}/api/v1/alerts/internal/notify",
             json=item,
             headers={"x-internal-key": settings.INTERNAL_API_KEY},
             timeout=5,

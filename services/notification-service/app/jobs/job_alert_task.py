@@ -19,8 +19,6 @@ from ..queue_consumer import drain_new_jobs
 log = logging.getLogger(__name__)
 settings = get_settings()
 
-_JOB_SEARCH_INTERNAL = "http://job-search-service:8002"
-
 # Track last run time so the direct-query fallback knows the window.
 # Initialize 15 minutes back so first run catches recently posted jobs.
 _last_checked_at: dt.datetime = dt.datetime.utcnow() - dt.timedelta(minutes=15)
@@ -39,7 +37,7 @@ def _fetch_alerts() -> list[dict]:
     """Fetch all active alerts from job-search-service (single source of truth)."""
     try:
         resp = httpx.get(
-            f"{_JOB_SEARCH_INTERNAL}/api/v1/alerts/internal/all-active",
+            f"{settings.JOB_SEARCH_SERVICE_URL}/api/v1/alerts/internal/all-active",
             headers={"x-internal-key": settings.INTERNAL_API_KEY},
             timeout=5,
         )

@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     # Downstream services
     JOB_POSTING_SERVICE_URL: str = "http://job-posting-service:8001"
+    JOB_SEARCH_SERVICE_URL: str = "http://job-search-service:8002"
 
     # Internal HTTP key – used by the cloud scheduler to call /internal/run-* endpoints.
     INTERNAL_API_KEY: str = "change-me"
