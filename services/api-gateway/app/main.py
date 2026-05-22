@@ -75,7 +75,7 @@ async def proxy(full_path: str, request: Request):
         return Response("Not Found", status_code=404)
 
     url = f"{upstream}/{full_path}"
-    headers = {k: v for k, v in request.headers.items() if k.lower() not in {"host", "content-length"}}
+    headers = {k: v for k, v in request.headers.items() if k.lower() not in {"host", "content-length", "accept-encoding"}}
     body = await request.body()
 
     async with httpx.AsyncClient(timeout=30) as client:
