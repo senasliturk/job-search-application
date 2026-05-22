@@ -1,4 +1,4 @@
-# SE 4458 — Final Project · Group 2
+# SE 4458 — Final Project 
 
 **Job Search Web Application** (kariyer.net-style) — full-stack microservice
 implementation for the SE 4458 (Software Architecture & Design of Modern
