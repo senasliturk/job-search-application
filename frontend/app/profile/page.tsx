@@ -10,7 +10,7 @@ import {
   reauthenticateWithCredential,
   type User,
 } from "@/lib/firebase";
-import { userProfile, admin, type UserProfile } from "@/lib/api";
+import { userProfile, admin, savedJobs, type UserProfile, type Job } from "@/lib/api";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -53,6 +53,10 @@ export default function ProfilePage() {
   const [companyMsg, setCompanyMsg] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [companyBusy, setCompanyBusy] = useState(false);
 
+  // ── Saved Jobs ──────────────────────────────────────────────────────────────
+  const [savedList, setSavedList] = useState<Job[]>([]);
+  const [savedLoading, setSavedLoading] = useState(false);
+
   useEffect(() => {
     const auth = firebaseAuth();
     if (!auth) { setUser(null); return; }
@@ -89,6 +93,10 @@ export default function ProfilePage() {
             setWebsite(myCompany.website ?? "");
           }
         } catch { /* optional */ }
+      } else {
+        // Candidate: load saved jobs
+        setSavedLoading(true);
+        savedJobs.list().then(setSavedList).catch(() => {}).finally(() => setSavedLoading(false));
       }
     });
   }, [router]);
@@ -533,6 +541,48 @@ export default function ProfilePage() {
           </button>
         </form>
       </div>
+
+      {/* Saved Jobs — candidates only */}
+      {!isCompany && (
+        <div className="card p-6 space-y-4">
+          <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+            </svg>
+            Kaydedilen İlanlar
+          </h2>
+          {savedLoading ? (
+            <p className="text-sm text-gray-400 animate-pulse">Yükleniyor…</p>
+          ) : savedList.length === 0 ? (
+            <p className="text-sm text-gray-500">Henüz kaydedilen ilan yok.</p>
+          ) : (
+            <ul className="space-y-3">
+              {savedList.map((j) => (
+                <li key={j.id} className="flex items-center justify-between gap-3 border border-gray-200 rounded-xl px-4 py-3 hover:border-brand/40 transition">
+                  <div className="min-w-0">
+                    <a href={`/jobs/${j.id}`} className="text-sm font-semibold text-gray-900 hover:text-brand truncate block">
+                      {j.title}
+                    </a>
+                    <p className="text-xs text-gray-500 mt-0.5">{j.company?.name} · {j.city}</p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      await savedJobs.unsave(j.id).catch(() => {});
+                      setSavedList((prev) => prev.filter((x) => x.id !== j.id));
+                    }}
+                    className="shrink-0 text-xs text-gray-400 hover:text-red-500 transition"
+                    title="Kayıttan kaldır"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M18 6L6 18M6 6l12 12" />
+                    </svg>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* Account info */}
       <div className="card p-6">

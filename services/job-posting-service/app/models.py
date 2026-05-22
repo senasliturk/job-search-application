@@ -11,6 +11,7 @@ from sqlalchemy import (
     Integer,
     Numeric,
     String,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -89,3 +90,17 @@ class UserProfile(Base):
     education_status: Mapped[str | None] = mapped_column(String(20), nullable=True)  # student/graduate/no_degree
     class_year: Mapped[str | None] = mapped_column(String(20), nullable=True)  # prep/year_1/.../year_5
     experience_level: Mapped[str | None] = mapped_column(String(20), nullable=True)  # new_grad/junior/mid/senior
+
+
+class SavedJob(Base):
+    __tablename__ = "saved_jobs"
+    __table_args__ = (UniqueConstraint("user_id", "job_posting_id", name="uq_saved_job"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(128), index=True)
+    job_posting_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("job_postings.id", ondelete="CASCADE"), index=True
+    )
+    saved_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    job: Mapped["JobPosting"] = relationship()

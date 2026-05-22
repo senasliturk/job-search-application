@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import JobCard from "@/components/JobCard";
-import { jobs } from "@/lib/api";
+import { jobs, savedJobs } from "@/lib/api";
 import type { Job } from "@/lib/api";
 import { firebaseAuth } from "@/lib/firebase";
 
@@ -36,6 +36,7 @@ export default function JobDetail() {
   const [msg, setMsg] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [saved, setSaved] = useState(false);
   const [applied, setApplied] = useState(false);
+  const [isCandidate, setIsCandidate] = useState(false);
 
   useEffect(() => {
     jobs.byId(id).then(setJob).catch(() => router.push("/"));
@@ -50,7 +51,36 @@ export default function JobDetail() {
     jobs.myApplication(id)
       .then(() => setApplied(true))
       .catch(() => {}); // 404 → not applied, ignore
+    // Check role: candidates have no role claim
+    u.getIdTokenResult(true).then((r) => {
+      const role = r.claims.role as string | undefined;
+      const candidate = !role || (role !== "admin" && role !== "company");
+      setIsCandidate(candidate);
+      if (candidate) {
+        savedJobs.isSaved(id)
+          .then((r) => setSaved(r.saved))
+          .catch(() => {});
+      }
+    });
   }, [id, job]);
+
+  async function toggleSave() {
+    const u = firebaseAuth()?.currentUser;
+    if (!u) { router.push(`/login?next=/jobs/${id}`); return; }
+    try {
+      if (saved) {
+        await savedJobs.unsave(id);
+        setSaved(false);
+        setMsg({ kind: "success", text: "İlan kaydedilenlerden kaldırıldı." });
+      } else {
+        await savedJobs.save(id);
+        setSaved(true);
+        setMsg({ kind: "success", text: "İlan kaydedildi." });
+      }
+    } catch (e: any) {
+      setMsg({ kind: "error", text: "Hata: " + e.message });
+    }
+  }
 
   async function apply() {
     const u = firebaseAuth()?.currentUser;
@@ -137,15 +167,17 @@ export default function JobDetail() {
               </svg>
               {applied ? "Başvuruldu ✓" : "Başvur"}
             </button>
-            <button
-              onClick={() => setSaved(!saved)}
-              className={`btn-secondary ${saved ? "border-brand text-brand" : ""}`}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill={saved ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
-                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-              </svg>
-              {saved ? "Kaydedildi" : "Kaydet"}
-            </button>
+            {isCandidate && (
+              <button
+                onClick={toggleSave}
+                className={`btn-secondary ${saved ? "border-brand text-brand" : ""}`}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill={saved ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                </svg>
+                {saved ? "Kaydedildi" : "Kaydet"}
+              </button>
+            )}
             <button
               onClick={() => {
                 navigator.clipboard?.writeText(window.location.href);

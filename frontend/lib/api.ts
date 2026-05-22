@@ -193,3 +193,10 @@ export const userProfile = {
   },
 };
 
+export const savedJobs = {
+  list: () => api<Job[]>("/api/v1/profile/saved-jobs"),
+  isSaved: (jobId: string) => api<{ saved: boolean }>(`/api/v1/profile/saved-jobs/${jobId}`),
+  save: (jobId: string) => api<{ saved: boolean }>(`/api/v1/profile/saved-jobs/${jobId}`, { method: "POST" }),
+  unsave: (jobId: string) => api<void>(`/api/v1/profile/saved-jobs/${jobId}`, { method: "DELETE" }),
+};
+

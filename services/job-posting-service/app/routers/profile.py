@@ -12,14 +12,15 @@ import os
 import re
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
 from fastapi.responses import FileResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session, selectinload
 
 from ..auth import get_current_user, require_admin
 from ..database import get_db
-from ..models import UserProfile
-from ..schemas import UserProfileIn, UserProfileOut
+from ..models import JobPosting, SavedJob, UserProfile
+from ..schemas import JobPostingOut, UserProfileIn, UserProfileOut
 
 log = logging.getLogger(__name__)
 
@@ -148,3 +149,83 @@ def download_cv(
     # Strip the uid_ prefix to produce a friendly download filename
     display = p.cv_filename.split("_", 1)[1] if "_" in p.cv_filename else p.cv_filename
     return FileResponse(path, media_type="application/pdf", filename=display)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# GET  /profile/saved-jobs          → list saved jobs
+# GET  /profile/saved-jobs/{job_id} → check if saved
+# POST /profile/saved-jobs/{job_id} → save a job
+# DELETE /profile/saved-jobs/{job_id} → unsave a job
+# ──────────────────────────────────────────────────────────────────────────────
+@router.get("/saved-jobs", response_model=list[JobPostingOut])
+def list_saved_jobs(
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+) -> list[JobPostingOut]:
+    uid = user["uid"]
+    rows = (
+        db.query(SavedJob)
+        .filter(SavedJob.user_id == uid)
+        .options(selectinload(SavedJob.job).selectinload(JobPosting.company))
+        .order_by(SavedJob.saved_at.desc())
+        .all()
+    )
+    return [r.job for r in rows if r.job and r.job.is_active]
+
+
+@router.get("/saved-jobs/{job_id}")
+def get_saved_status(
+    job_id: str,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+) -> dict:
+    uid = user["uid"]
+    exists = (
+        db.query(SavedJob)
+        .filter(SavedJob.user_id == uid, SavedJob.job_posting_id == job_id)
+        .first()
+    )
+    return {"saved": exists is not None}
+
+
+@router.post("/saved-jobs/{job_id}")
+def save_job(
+    job_id: str,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+) -> dict:
+    uid = user["uid"]
+    job = db.get(JobPosting, job_id)
+    if not job:
+        raise HTTPException(404, "İlan bulunamadı.")
+    existing = (
+        db.query(SavedJob)
+        .filter(SavedJob.user_id == uid, SavedJob.job_posting_id == job_id)
+        .first()
+    )
+    if existing:
+        return {"saved": True}
+    try:
+        db.add(SavedJob(user_id=uid, job_posting_id=job_id))
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+    return {"saved": True}
+
+
+@router.delete("/saved-jobs/{job_id}", status_code=204)
+def unsave_job(
+    job_id: str,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+) -> Response:
+    uid = user["uid"]
+    row = (
+        db.query(SavedJob)
+        .filter(SavedJob.user_id == uid, SavedJob.job_posting_id == job_id)
+        .first()
+    )
+    if row:
+        db.delete(row)
+        db.commit()
+    return Response(status_code=204)
