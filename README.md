@@ -167,6 +167,7 @@ FIREBASE_SERVICE_ACCOUNT_JSON = <firebase-sa.json content>
 RABBITMQ_URL                  = <CloudAMQP AMQP URL>
 INTERNAL_API_KEY              = <same secret as job-search-service>
 JOB_POSTING_SERVICE_URL       = <job-posting-service Render URL>
+JOB_SEARCH_SERVICE_URL        = <job-search-service Render URL>
 ```
 
 **ai-agent-service:**
@@ -238,3 +239,5 @@ jobs:
 - **Firestore vs Cosmos:** Replaced Cosmos DB client with a Firestore wrapper keeping the same interface, so no router or task code needed changing.
 - **Firebase credentials on Render:** `GOOGLE_APPLICATION_CREDENTIALS` file path doesn't work on Render; switched to `FIREBASE_SERVICE_ACCOUNT_JSON` env var (raw JSON string).
 - **Render free tier cold starts:** Free services spin down after inactivity. First request after idle takes ~30 seconds.
+- **CV file storage:** Render's filesystem is ephemeral (files lost on redeploy). Switched from disk-based upload to storing CV binary directly in PostgreSQL (`cv_data BYTEA` column on `user_profiles`). Startup migration runs `ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS cv_data BYTEA` so existing deployments get the column without a manual migration step.
+- **Notification inter-service routing:** `notification-service` called `job-search-service` via Docker Compose hostname (`http://job-search-service:8002`). Replaced with `JOB_SEARCH_SERVICE_URL` env var so Render public URLs work.
