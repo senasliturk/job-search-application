@@ -1,7 +1,8 @@
-"""Read/write Cosmos client for the notification service.
+"""NoSQL client — Firebase Firestore (notification service).
 
-Reads alerts from the shared container the Job Search service writes to.
-Writes notifications to the shared `notifications` container (also read by Job Search service).
+Reads alerts/searches written by job-search-service.
+Writes notifications to the shared 'notifications' collection.
+Falls back to in-memory when Firebase is not configured (local dev).
 """
 from __future__ import annotations
 
@@ -15,18 +16,7 @@ log = logging.getLogger(__name__)
 settings = get_settings()
 
 
-class _NoCosmos:
-    """Pure no-op for local dev when Cosmos is not configured."""
-    def query_items(self, *_a, **_kw):
-        return iter(())
-
-    def upsert_item(self, item):
-        log.info("[COSMOS-NOOP] upsert_item id=%s", item.get("id", "?"))
-        return item
-
-
-class _MemNotifications:
-    """In-memory notifications store for local dev."""
+class _MemoryContainer:
     def __init__(self) -> None:
         self._items: dict[str, dict] = {}
 
@@ -35,8 +25,44 @@ class _MemNotifications:
         self._items[item["id"]] = item
         return item
 
-    def query_items(self, *_a, **_kw):
-        return iter(self._items.values())
+    def query_items(self, query: str = "", parameters: list | None = None, **kw):
+        params = {p["name"]: p["value"] for p in (parameters or [])}
+        for item in list(self._items.values()):
+            if "@user_id" in params and item.get("user_id") != params["@user_id"]:
+                continue
+            if "@active" in params and item.get("active") != params["@active"]:
+                continue
+            if "@cutoff" in params and item.get("searched_at", "") < params["@cutoff"]:
+                continue
+            yield item
+
+    def delete_item(self, item: str, partition_key: str) -> None:
+        self._items.pop(item, None)
+
+
+class _FirestoreContainer:
+    def __init__(self, collection) -> None:
+        self._col = collection
+
+    def upsert_item(self, item: dict) -> dict:
+        item.setdefault("id", str(uuid.uuid4()))
+        self._col.document(item["id"]).set(item)
+        return item
+
+    def query_items(self, query: str = "", parameters: list | None = None, **kw):
+        params = {p["name"]: p["value"] for p in (parameters or [])}
+        q = self._col
+        if "@user_id" in params:
+            q = q.where("user_id", "==", params["@user_id"])
+        if "@active" in params:
+            q = q.where("active", "==", params["@active"])
+        if "@cutoff" in params:
+            q = q.where("searched_at", ">=", params["@cutoff"])
+        for doc in q.stream():
+            yield doc.to_dict()
+
+    def delete_item(self, item: str, partition_key: str) -> None:
+        self._col.document(item).delete()
 
 
 class _Db:
@@ -44,27 +70,42 @@ class _Db:
         self.alerts: Any
         self.searches: Any
         self.notifications: Any
-        if not settings.COSMOS_ENDPOINT:
-            log.warning("COSMOS_ENDPOINT empty – notification service runs without DB.")
-            self.alerts = _NoCosmos()
-            self.searches = _NoCosmos()
-            self.notifications = _MemNotifications()
+        self._connect()
+
+    def _connect(self) -> None:
+        if not settings.FIREBASE_PROJECT_ID:
+            log.warning("FIREBASE_PROJECT_ID empty — notification service using in-memory store.")
+            self._use_memory()
             return
         try:
-            from azure.cosmos import CosmosClient, PartitionKey
-            client = CosmosClient(settings.COSMOS_ENDPOINT, credential=settings.COSMOS_KEY)
-            cosmos_db = client.create_database_if_not_exists(id=settings.COSMOS_DATABASE)
-            self.alerts = cosmos_db.get_container_client(settings.COSMOS_CONTAINER_ALERTS)
-            self.searches = cosmos_db.get_container_client(settings.COSMOS_CONTAINER_SEARCHES)
-            self.notifications = cosmos_db.create_container_if_not_exists(
-                id=settings.COSMOS_CONTAINER_NOTIFICATIONS,
-                partition_key=PartitionKey(path="/user_id"),
-            )
+            import firebase_admin
+            from firebase_admin import credentials, firestore
+
+            if not firebase_admin._apps:
+                import json, os
+                sa_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
+                sa_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+                if sa_json:
+                    cred = credentials.Certificate(json.loads(sa_json))
+                elif sa_path and os.path.exists(sa_path):
+                    cred = credentials.Certificate(sa_path)
+                else:
+                    cred = credentials.ApplicationDefault()
+                firebase_admin.initialize_app(cred, {"projectId": settings.FIREBASE_PROJECT_ID})
+
+            fs = firestore.client()
+            self.alerts = _FirestoreContainer(fs.collection("user_alerts"))
+            self.searches = _FirestoreContainer(fs.collection("user_searches"))
+            self.notifications = _FirestoreContainer(fs.collection("notifications"))
+            log.info("Firestore connected (project=%s)", settings.FIREBASE_PROJECT_ID)
         except Exception as e:  # noqa: BLE001
-            log.warning("Cosmos connect failed (%s) – using no-op store.", e)
-            self.alerts = _NoCosmos()
-            self.searches = _NoCosmos()
-            self.notifications = _MemNotifications()
+            log.warning("Firestore connect failed (%s) — falling back to in-memory.", e)
+            self._use_memory()
+
+    def _use_memory(self) -> None:
+        self.alerts = _MemoryContainer()
+        self.searches = _MemoryContainer()
+        self.notifications = _MemoryContainer()
 
 
 db = _Db()
