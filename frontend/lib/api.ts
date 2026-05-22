@@ -5,7 +5,10 @@ const BASE = process.env.NEXT_PUBLIC_API_GATEWAY_URL || "";
 
 async function bearer(): Promise<string | null> {
   const auth = firebaseAuth();
-  const u = auth?.currentUser;
+  if (!auth) return null;
+  // Wait for Firebase Auth to finish loading the persisted session
+  await auth.authStateReady();
+  const u = auth.currentUser;
   if (!u) return null;
   return await u.getIdToken();
 }
