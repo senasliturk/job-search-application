@@ -9,14 +9,19 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
+      - name: Wake up notification service
+        run: |
+          curl --max-time 90 --retry 3 --retry-delay 15 \
+               "${{ secrets.NOTIFICATION_URL }}/healthz" || true
+
       - name: Job alert task
         run: |
           curl -X POST "${{ secrets.NOTIFICATION_URL }}/internal/run-job-alert" \
                -H "X-Internal-Key: ${{ secrets.INTERNAL_API_KEY }}" \
-               --fail --silent --show-error
+               --max-time 90 --fail --show-error
 
       - name: Related jobs task
         run: |
           curl -X POST "${{ secrets.NOTIFICATION_URL }}/internal/run-related-jobs" \
                -H "X-Internal-Key: ${{ secrets.INTERNAL_API_KEY }}" \
-               --fail --silent --show-error
+               --max-time 90 --fail --show-error
