@@ -10,11 +10,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # Database
-    JOB_POSTING_DB_URL: str = (
-        "mssql+pyodbc://sa:Your_password123@localhost:1433/jobpostings"
-        "?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
-    )
+    # Database (PostgreSQL)
+    JOB_POSTING_DB_URL: str = "postgresql://postgres:postgres@localhost:5432/jobpostings"
 
     # Cache
     REDIS_URL: str = "redis://localhost:6379/0"
