@@ -1,0 +1,22 @@
+name: Nightly Notification Tasks
+
+on:
+  schedule:
+    - cron: '0 2 * * *'   # 02:00 UTC every night
+  workflow_dispatch:        # manual trigger from GitHub UI
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Job alert task
+        run: |
+          curl -X POST "${{ secrets.NOTIFICATION_URL }}/internal/run-job-alert" \
+               -H "X-Internal-Key: ${{ secrets.INTERNAL_API_KEY }}" \
+               --fail --silent --show-error
+
+      - name: Related jobs task
+        run: |
+          curl -X POST "${{ secrets.NOTIFICATION_URL }}/internal/run-related-jobs" \
+               -H "X-Internal-Key: ${{ secrets.INTERNAL_API_KEY }}" \
+               --fail --silent --show-error
