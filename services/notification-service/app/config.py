@@ -8,14 +8,9 @@ class Settings(BaseSettings):
     SERVICE_NAME: str = "notification-service"
     API_VERSION: str = "v1"
 
-    # Cosmos DB (alerts + searches – read-only here, writes happen in Job Search service)
-    # notifications container is write-only from this service
-    COSMOS_ENDPOINT: str = ""
-    COSMOS_KEY: str = ""
-    COSMOS_DATABASE: str = "jobsearch"
-    COSMOS_CONTAINER_SEARCHES: str = "user_searches"
-    COSMOS_CONTAINER_ALERTS: str = "user_alerts"
-    COSMOS_CONTAINER_NOTIFICATIONS: str = "notifications"
+    # Firebase / Firestore
+    FIREBASE_PROJECT_ID: str = ""
+    FIREBASE_SERVICE_ACCOUNT_JSON: str = ""
 
     # Queue
     SERVICE_BUS_CONNECTION_STRING: str = ""
