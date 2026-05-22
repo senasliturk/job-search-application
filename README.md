@@ -4,293 +4,237 @@
 implementation for the SE 4458 (Software Architecture & Design of Modern
 Large Scale Systems) final, May 2026.
 
-> **Course requirements addressed:** REST microservices, separately-deployed
-> services behind an API Gateway, versioned & paginated APIs, distributed cache,
-> NoSQL store, queue-driven notifications, scheduled tasks, Firebase IAM, AI
-> agent, Dockerfiles, cloud deploy.
+---
+
+## Final Deployed URLs
+
+| Component | URL |
+|---|---|
+| Frontend (Next.js) | https://job-search-application.vercel.app |
+| API Gateway | https://kariyer-api-gateway.onrender.com |
+| Job Posting Service | https://kariyer-job-posting.onrender.com |
+| Job Search Service | https://kariyer-job-search.onrender.com |
+| Notification Service | https://kariyer-notification.onrender.com |
+| AI Agent Service | https://kariyer-ai-agent.onrender.com |
+
+**Demo video (≤ 5 min):** https://youtu.be/REPLACE_ME
 
 ---
 
-## Final deployed URLs
-
-> ⚠️ Replace with your real URLs after deploy. The repo runs end-to-end with
-> the placeholders filled in.
-
-| Component                | URL                                                                    |
-| ------------------------ | ---------------------------------------------------------------------- |
-| Frontend (Next.js)       | <https://kariyer-4458.vercel.app>                                      |
-| API Gateway              | <https://kariyer-4458-gateway.azurewebsites.net>                       |
-| Job Posting Service      | <https://kariyer-4458-posting.azurewebsites.net> (`/api/v1/docs`)      |
-| Job Search Service       | <https://kariyer-4458-search.azurewebsites.net>  (`/api/v1/docs`)      |
-| Notification Service     | <https://kariyer-4458-notify.azurewebsites.net>  (`/api/v1/docs`)      |
-| AI Agent Service         | <https://kariyer-4458-ai.azurewebsites.net>     (`/api/v1/docs`)       |
-
-**Demo video (≤ 5 min):** <https://youtu.be/REPLACE_ME>
-
----
-
-## Architecture overview
+## Architecture Overview
 
 ```mermaid
 flowchart LR
     subgraph Clients
-      C[Client / Admin Client<br/>Next.js on Vercel]
+      C[Client / Admin\nNext.js on Vercel]
     end
-    C -- REST + Firebase JWT --> GW[API Gateway<br/>Azure App Service]
-    GW --> JP[Job Posting Service<br/>FastAPI · Azure SQL · Redis]
-    GW --> JS[Job Search Service<br/>FastAPI · Cosmos DB]
-    GW --> NS[Notification Service<br/>FastAPI · scheduled]
-    GW --> AI[AI Agent Service<br/>FastAPI + LLM]
+
+    C -- REST + Firebase JWT --> GW[API Gateway\nRender]
+
+    GW --> JP[Job Posting Service\nFastAPI · PostgreSQL · Redis]
+    GW --> JS[Job Search Service\nFastAPI · Firestore]
+    GW --> NS[Notification Service\nFastAPI · scheduled]
+    GW --> AI[AI Agent Service\nFastAPI + LLM]
+
     AI --> JP
     AI --> JS
-    JP --> R[(Redis<br/>distributed cache)]
-    JP --> SQL[(Azure SQL<br/>Job Postings)]
-    JP --> Q{{Azure Service Bus<br/>new-job-postings}}
-    JS --> Cosmos[(Cosmos DB<br/>NoSQL searches & alerts)]
+
+    JP --> R[(Upstash Redis\ncache)]
+    JP --> PG[(PostgreSQL\nRender · Job Postings)]
+    JP --> Q{{CloudAMQP\nRabbitMQ · new-job-postings}}
+
+    JS --> FS[(Firebase Firestore\nNoSQL · searches & alerts)]
+
     NS --> Q
-    NS --> Cosmos
-    Sched[Azure Logic Apps / Cloud Scheduler] --> NS
+    NS --> FS
+
+    Sched[GitHub Actions\nnightly cron] --> NS
+
     C -. signin .-> FB[(Firebase Auth)]
     GW -. verify token .-> FB
 ```
 
-Detailed diagrams live in [`docs/architecture.md`](docs/architecture.md).
-
 ---
 
-## Repository layout
+## Repository Layout
 
 ```
-job-search-app/
-├── docker-compose.yml          # local dev orchestration only
+job-search-application/
+├── docker-compose.yml          # local dev only
 ├── .env.example                # all required env vars
 ├── docs/
-│   ├── architecture.md         # high-level diagram + reasoning
-│   └── er-diagram.md           # data models (SQL + NoSQL + cache keys)
+│   ├── architecture.md
+│   └── er-diagram.md           # data models (SQL + NoSQL + cache)
 ├── services/
-│   ├── api-gateway/            # FastAPI proxy (port 8000)
-│   ├── job-posting-service/    # FastAPI + Azure SQL + Redis (port 8001)
-│   ├── job-search-service/     # FastAPI + Cosmos DB (port 8002)
-│   ├── notification-service/   # FastAPI + Service Bus + scheduler (port 8003)
-│   └── ai-agent-service/       # FastAPI + LLM tool-calling (port 8004)
-└── frontend/                   # Next.js 14 (App Router) + Tailwind + Firebase
+│   ├── api-gateway/            # FastAPI proxy        (port 8000)
+│   ├── job-posting-service/    # FastAPI + PostgreSQL + Redis (port 8001)
+│   ├── job-search-service/     # FastAPI + Firestore  (port 8002)
+│   ├── notification-service/   # FastAPI + scheduler  (port 8003)
+│   └── ai-agent-service/       # FastAPI + LLM        (port 8004)
+└── frontend/                   # Next.js 14 · Tailwind · Firebase Auth
 ```
 
-Every backend service has its own `Dockerfile` and `requirements.txt` so the
-assignment’s "deployed separately" rule holds.
+Every backend service has its own `Dockerfile` and `requirements.txt`.
 
 ---
 
-## Data models
+## Data Models
 
-See [`docs/er-diagram.md`](docs/er-diagram.md) for the full ER diagram. Quick
-summary:
+See [`docs/er-diagram.md`](docs/er-diagram.md) for the full ER diagram.
 
-* **Azure SQL** (Job Posting Service): `companies`, `job_postings`, `job_applications`.
-* **Cosmos DB** (Job Search Service – NoSQL): `user_searches`, `user_alerts`, partitioned by `user_id`.
-* **Redis** (Job Posting Service – distributed cache): `job:{id}`, `jobs:list:{hash}`, `autocomplete:{kind}:{q}`.
-
----
-
-## How requirements map to the implementation
-
-| Common Requirement                                                        | Where                                                                                 |
-| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Service-oriented framework                                                | FastAPI per service                                                                   |
-| Simple UI per mock-ups                                                    | `frontend/app/*` — home, search, detail, admin, alerts, login, AI chat widget         |
-| All business use cases via REST                                           | every router under `/api/v1/...`                                                      |
-| Deployed to a cloud provider                                              | Azure App Service (backends) + Vercel (frontend) — see "Deploy" below                 |
-| Job Search / Posting / Notification deployed **separately** behind a GW   | 5 backend services, each with its own Dockerfile + App Service                        |
-| RabbitMQ or Azure Messaging                                               | `services/job-posting-service/app/queue.py` + notification consumer (Service Bus, RabbitMQ fallback)        |
-| REST versioned + paginated                                                | every router mounted at `/api/v1`; list endpoints accept `?page=&page_size=`          |
-| Distributed cache (≥1)                                                    | Redis used for Job Posting reads & autocomplete (`app/cache.py`)                      |
-| IAM (Cognito / Firebase / Supabase)                                       | Firebase Auth — verified by gateway *and* every service (`auth.py`)                   |
-| AI Agent (real-time NOT required)                                         | `ai-agent-service` exposes `/api/v1/agent/chat`, used by `ChatWidget.tsx`             |
-| Job searches in NoSQL                                                     | Cosmos container `user_searches`, partition key `/user_id`                            |
-| Dockerfile in source (no image)                                           | one per service + frontend                                                            |
-| Cloud DB (no SQLite)                                                      | Azure SQL + Azure Cosmos DB                                                           |
-| Cloud-scheduled tasks                                                     | `notification-service/app/jobs/{job_alert,related_job}_task.py`, called by Logic Apps |
+| Store | Service | What's stored |
+|---|---|---|
+| **PostgreSQL** (Render) | Job Posting | `companies`, `job_postings`, `job_applications`, `user_profiles` |
+| **Firebase Firestore** (NoSQL) | Job Search / Notification | `user_searches`, `user_alerts`, `notifications` |
+| **Upstash Redis** (cache) | Job Posting | `job:{id}`, `jobs:list:{hash}`, `autocomplete:{kind}:{q}` |
 
 ---
 
-## Run locally (one command)
+## Requirements → Implementation Mapping
+
+| Requirement | Implementation |
+|---|---|
+| Service-oriented framework | FastAPI per service |
+| Simple UI per mock-ups | `frontend/app/*` — home, search, detail, admin, alerts, AI chat |
+| All use cases via REST | Every router under `/api/v1/...` |
+| Deployed to cloud | Render (backends) + Vercel (frontend) |
+| Services deployed separately behind API Gateway | 5 backend services, each with own Dockerfile + Render Web Service |
+| Queue (RabbitMQ / Azure Messaging) | CloudAMQP RabbitMQ — `queue.py` + notification consumer |
+| REST versioned + paginated | All routers at `/api/v1`; list endpoints accept `?page=&page_size=` |
+| Distributed cache (≥1) | Upstash Redis for Job Posting reads & autocomplete |
+| IAM (Firebase / Cognito / Supabase) | Firebase Auth — verified at gateway and every service |
+| AI Agent (real-time NOT required) | `ai-agent-service` → `/api/v1/agent/chat` + `ChatWidget.tsx` |
+| Job searches in NoSQL | Firebase Firestore collection `user_searches` |
+| Dockerfile in source (no image) | One per service + frontend |
+| Cloud DB (no SQLite) | PostgreSQL on Render + Firebase Firestore |
+| Scheduled tasks | GitHub Actions cron → `/internal/run-job-alert` & `/internal/run-related-jobs` |
+
+---
+
+## Run Locally
 
 ```bash
-cp .env.example .env       # fill in values; Firebase + LLM keys are optional for first run
+cp .env.example .env       # fill in values
 docker compose up --build
 ```
 
-Then open:
+Open:
+- http://localhost:3000 — frontend
+- http://localhost:8000/api/v1/docs — gateway swagger
 
-* <http://localhost:3000>  – frontend
-* <http://localhost:8000/api/v1/docs> – gateway swagger (proxies to all services)
-
-The Job Posting Service auto-creates tables and seeds 6 demo postings on first
-boot, so the home page is not empty.
-
-### Run / debug from VS Code
-
-Open the repo root in VS Code. The `.vscode/` folder ships pre-configured
-debug launchers — open the Run panel (⇧⌘D), pick **"ALL: backend + frontend"**
-from the compound list and press F5 to start every service with breakpoints
-enabled. Individual services can also be launched one at a time. Recommended
-extensions (Python, Docker, ESLint, Tailwind, Prettier) auto-suggest on first
-open.
-
-For the frontend, copy `frontend/.env.local.example` to `frontend/.env.local`
-and fill in your Firebase web SDK keys before running `npm run dev`.
-
-### Without Docker (Python 3.12 + Node 20)
-
-```bash
-# In one terminal per service:
-cd services/job-posting-service && pip install -r requirements.txt && uvicorn app.main:app --port 8001
-cd services/job-search-service  && pip install -r requirements.txt && uvicorn app.main:app --port 8002
-cd services/notification-service&& pip install -r requirements.txt && uvicorn app.main:app --port 8003
-cd services/ai-agent-service    && pip install -r requirements.txt && uvicorn app.main:app --port 8004
-cd services/api-gateway         && pip install -r requirements.txt && uvicorn app.main:app --port 8000
-
-# And the UI:
-cd frontend && npm install && npm run dev
-```
-
-The services degrade gracefully:
-
-* Redis missing  → in-memory no-op cache
-* Cosmos missing → in-memory dict
-* Service Bus missing → uses RabbitMQ
-* Firebase missing  → dev fallback user (logged with `_dev: true`)
-* LLM key missing  → rule-based agent answers
+The Job Posting Service auto-creates tables and seeds 6 demo postings on first boot.
 
 ---
 
-## Deploy to Azure (recommended)
+## Deploy
 
-Frontend goes to **Vercel** (one-click Next.js host). Backends and infra go to
-**Azure**.
+### Infrastructure Used
 
-### 1. Provision
+| Service | Provider | Purpose |
+|---|---|---|
+| PostgreSQL | Render (free) | Relational DB for job postings |
+| NoSQL | Firebase Firestore (free) | User searches, alerts, notifications |
+| Cache | Upstash Redis (free) | Job posting distributed cache |
+| Queue | CloudAMQP — RabbitMQ (free) | New job posting events |
+| Backend × 5 | Render Web Services | API Gateway + 4 microservices |
+| Frontend | Vercel (free) | Next.js UI |
+| Auth | Firebase Auth (free) | User authentication |
+| Scheduler | GitHub Actions (free) | Nightly notification tasks |
 
-```bash
-RG=kariyer4458-rg LOC=westeurope
-az group create -n $RG -l $LOC
+### Environment Variables per Service
 
-# SQL
-az sql server create -g $RG -n kariyer4458-sql -l $LOC -u sqladmin -p '<strong-pwd>'
-az sql db   create -g $RG -s kariyer4458-sql -n jobpostings --service-objective S0
-
-# Cosmos
-az cosmosdb create -g $RG -n kariyer4458-cosmos --kind GlobalDocumentDB
-
-# Redis
-az redis create -g $RG -n kariyer4458-redis -l $LOC --sku Basic --vm-size c0
-
-# Service Bus
-az servicebus namespace create -g $RG -n kariyer4458-sb -l $LOC --sku Basic
-az servicebus queue create -g $RG --namespace-name kariyer4458-sb -n new-job-postings
+**job-posting-service:**
+```
+JOB_POSTING_DB_URL        = <Render PostgreSQL URL>
+REDIS_URL                 = <Upstash Redis URL>
+RABBITMQ_URL              = <CloudAMQP AMQP URL>
+FIREBASE_PROJECT_ID       = kariyer-4458
+FIREBASE_SERVICE_ACCOUNT_JSON = <firebase-sa.json content as single-line JSON>
 ```
 
-### 2. Container registry + images
-
-```bash
-az acr create -g $RG -n kariyer4458acr --sku Basic
-az acr login -n kariyer4458acr
-
-for s in api-gateway job-posting-service job-search-service notification-service ai-agent-service; do
-  docker build -t kariyer4458acr.azurecr.io/$s:1.0 services/$s
-  docker push      kariyer4458acr.azurecr.io/$s:1.0
-done
+**job-search-service:**
+```
+FIREBASE_PROJECT_ID           = kariyer-4458
+FIREBASE_SERVICE_ACCOUNT_JSON = <firebase-sa.json content>
+INTERNAL_API_KEY              = <random secret string>
+JOB_POSTING_SERVICE_URL       = <job-posting-service Render URL>
 ```
 
-### 3. Five separate App Services (one per backend)
-
-```bash
-az appservice plan create -g $RG -n kariyer4458-plan --is-linux --sku B1
-
-for s in api-gateway job-posting-service job-search-service notification-service ai-agent-service; do
-  az webapp create -g $RG -p kariyer4458-plan -n kariyer4458-$s \
-    --deployment-container-image-name kariyer4458acr.azurecr.io/$s:1.0
-done
+**notification-service:**
+```
+FIREBASE_PROJECT_ID           = kariyer-4458
+FIREBASE_SERVICE_ACCOUNT_JSON = <firebase-sa.json content>
+RABBITMQ_URL                  = <CloudAMQP AMQP URL>
+INTERNAL_API_KEY              = <same secret as job-search-service>
+JOB_POSTING_SERVICE_URL       = <job-posting-service Render URL>
 ```
 
-Set environment variables (App Settings) per `.env.example` on each app.
-Mount your Firebase service-account JSON via Azure Key Vault or upload it as
-a secret file referenced by `GOOGLE_APPLICATION_CREDENTIALS`.
-
-### 4. Frontend on Vercel
-
-```bash
-cd frontend
-vercel --prod
-# Set env vars in Vercel dashboard:
-#   NEXT_PUBLIC_API_GATEWAY_URL = https://kariyer-4458-gateway.azurewebsites.net
-#   NEXT_PUBLIC_FIREBASE_*      = (Firebase web config)
+**ai-agent-service:**
+```
+LLM_API_KEY             = <OpenAI key — leave empty for rule-based fallback>
+LLM_MODEL               = gpt-4o-mini
+JOB_POSTING_SERVICE_URL = <job-posting-service Render URL>
+JOB_SEARCH_SERVICE_URL  = <job-search-service Render URL>
 ```
 
-### 5. Schedule the two notification tasks
+**api-gateway:**
+```
+JOB_POSTING_SERVICE_URL  = <Render URL>
+JOB_SEARCH_SERVICE_URL   = <Render URL>
+NOTIFICATION_SERVICE_URL = <Render URL>
+AI_AGENT_SERVICE_URL     = <Render URL>
+FIREBASE_PROJECT_ID      = kariyer-4458
+FIREBASE_SERVICE_ACCOUNT_JSON = <firebase-sa.json content>
+ALLOWED_ORIGINS          = *
+```
 
-Use **Azure Logic Apps** (free tier) or **Google Cloud Scheduler**:
+**frontend (Vercel):**
+```
+NEXT_PUBLIC_API_GATEWAY_URL        = <api-gateway Render URL>
+NEXT_PUBLIC_FIREBASE_API_KEY       = <Firebase web config>
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN   = kariyer-4458.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID    = kariyer-4458
+NEXT_PUBLIC_FIREBASE_APP_ID        = <Firebase web config>
+```
 
-* Daily 02:00 UTC → `POST /internal/run-job-alert`
-  Header: `X-Internal-Key: <INTERNAL_API_KEY>`
-* Daily 03:00 UTC → `POST /internal/run-related-jobs`
+### Scheduler (GitHub Actions)
 
-Both are idempotent and return a small JSON report.
+`.github/workflows/scheduler.yml` runs nightly and calls the two notification tasks:
+
+```yaml
+name: Nightly Notification Tasks
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Job alert task
+        run: curl -X POST ${{ secrets.NOTIFICATION_URL }}/internal/run-job-alert
+               -H "X-Internal-Key: ${{ secrets.INTERNAL_API_KEY }}"
+      - name: Related jobs task
+        run: curl -X POST ${{ secrets.NOTIFICATION_URL }}/internal/run-related-jobs
+               -H "X-Internal-Key: ${{ secrets.INTERNAL_API_KEY }}"
+```
 
 ---
 
 ## Assumptions
 
-1. **Reverse-geocoding is out of scope.** The home page reads
-   `user_city` from `localStorage` (or assumes `İzmir` after a geolocation
-   fix) — the assignment explicitly allows: *"or user citt (assume it is accessible)"*.
-2. **Authentication is centralized at Firebase.** No local password storage.
-   Admin/company privileges are granted via Firebase **custom claims**
-   (`role=admin` / `role=company`). Use the Firebase CLI:
-   `firebase auth:set-custom-user-claims <uid> '{"role":"admin"}'`.
-3. **Notifications are stubbed.** The `notifier.send()` function logs a
-   structured message; in a real deploy you’d swap it for SendGrid / Azure
-   Communication Services / FCM. The course PDF says no payment integration
-   is needed; we treat the delivery channel similarly.
-4. **`Son Aramalarım`** is per logged-in user only; anonymous searches are
-   stored under `user_id="anonymous"` but never surfaced.
-5. **Pagination** is keyset-free (offset/limit). Acceptable for the dataset
-   sizes we expect; would need cursor-based pagination at production scale.
-6. **AI Agent** uses any OpenAI-compatible endpoint (works with OpenAI, Azure
-   OpenAI, OpenRouter). If `LLM_API_KEY` is empty, a small rule-based
-   fallback answers — useful for grading without burning tokens.
-7. **Service-to-service auth.** The notification scheduler endpoints are
-   gated by a static `X-Internal-Key`. Production-grade setups should use
-   Azure Managed Identity instead; this static key keeps the demo simple.
-8. **SQLite is intentionally not used** anywhere — Azure SQL Edge is the
-   local dev DB so the connection string and ORM behavior match production.
+1. **Geolocation:** Home page reads `user_city` from `localStorage`. The assignment allows: *"assume it is accessible"*.
+2. **Firebase Auth as IAM:** Admin/company roles are granted via Firebase custom claims (`role=admin` / `role=company`).
+3. **Notification delivery:** `notifier.send()` persists an in-app notification to Firestore and sends SMTP email when `SMTP_HOST` is configured. Course PDF states no payment integration is needed; email delivery channel is treated similarly.
+4. **Son Aramalarım:** Shown only for logged-in users. Anonymous searches are stored under `user_id="anonymous"` but not surfaced.
+5. **Pagination:** Offset/limit. Acceptable for expected dataset size.
+6. **AI Agent fallback:** If `LLM_API_KEY` is empty, a rule-based agent answers — useful for grading without API costs.
+7. **Service-to-service auth:** Notification scheduler endpoints are gated by a static `X-Internal-Key`. Sufficient for demo scope.
+8. **NoSQL:** Firebase Firestore is used instead of Azure Cosmos DB — same NoSQL requirement, zero extra account needed since Firebase Auth is already in use.
 
-## Known issues / nice-to-haves
+## Issues Encountered
 
-* No automated tests yet (the assignment doesn’t require them; pytest scaffold
-  could be added under each service).
-* "Map view" of search results is intentionally omitted (not in Group 2's
-  spec; that was a Group 1 hotel-search requirement).
-* Autocomplete sources from already-posted titles only. A real product
-  would maintain a curated taxonomy of positions and cities.
-* Cosmos cross-partition queries (used in the related-job task) are RU-heavy;
-  for production, switch to Change Feed.
-* The API Gateway re-streams responses synchronously; a production gateway
-  (e.g., YARP, Kong, Azure Front Door) would offer caching, rate-limiting,
-  WAF, etc. The assignment explicitly says we should *not* pay for Azure API
-  Management, so this bare proxy is the chosen alternative.
-
-## Issues encountered while building
-
-* **ODBC driver in Docker.** `pyodbc` needs `msodbcsql18` and `unixodbc-dev`
-  installed in the image — captured in the Job Posting Service Dockerfile.
-* **Cosmos DB local dev.** No real Cosmos emulator on macOS-ARM, so the
-  service falls back to an in-memory store when `COSMOS_ENDPOINT` is empty.
-* **Service Bus vs. RabbitMQ.** We dual-target both so local dev needs no
-  Azure subscription.
-
----
-
-## License & attribution
-
-Educational project for SE 4458, Yaşar University. No production warranty.
+- **PostgreSQL migration:** Original code targeted Azure SQL Server (pyodbc/mssql). Switched to PostgreSQL (psycopg2) for Render compatibility. SQLAlchemy ORM made this a 3-file change.
+- **Firestore vs Cosmos:** Replaced Cosmos DB client with a Firestore wrapper keeping the same interface, so no router or task code needed changing.
+- **Firebase credentials on Render:** `GOOGLE_APPLICATION_CREDENTIALS` file path doesn't work on Render; switched to `FIREBASE_SERVICE_ACCOUNT_JSON` env var (raw JSON string).
+- **Render free tier cold starts:** Free services spin down after inactivity. First request after idle takes ~30 seconds.
