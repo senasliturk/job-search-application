@@ -8,12 +8,9 @@ GET  /profile/cv/{uid}  → download a user's CV (company / admin only)
 from __future__ import annotations
 
 import logging
-import os
 import re
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
-from fastapi.responses import FileResponse
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -23,9 +20,6 @@ from ..models import JobPosting, SavedJob, UserProfile
 from ..schemas import JobPostingOut, UserProfileIn, UserProfileOut
 
 log = logging.getLogger(__name__)
-
-UPLOAD_DIR = Path(os.getenv("CV_UPLOAD_DIR", "/app/uploads"))
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 MAX_CV_BYTES = 5 * 1024 * 1024  # 5 MB
 
@@ -106,23 +100,13 @@ async def upload_cv(
     safe_orig = re.sub(r"[^a-zA-Z0-9._\- ]", "_", file.filename or "cv.pdf").strip()
     filename = f"{uid}_{safe_orig}"
 
-    # Persist file
-    (UPLOAD_DIR / filename).write_bytes(content)
-
     p = db.get(UserProfile, uid)
     if not p:
         p = UserProfile(user_id=uid)
         db.add(p)
 
-    # Remove old file if different
-    if p.cv_filename and p.cv_filename != filename:
-        old = UPLOAD_DIR / p.cv_filename
-        try:
-            old.unlink(missing_ok=True)
-        except Exception:
-            pass
-
     p.cv_filename = filename
+    p.cv_data = content
     db.commit()
     db.refresh(p)
     return p
@@ -136,19 +120,18 @@ def download_cv(
     user_id: str,
     db: Session = Depends(get_db),
     _caller: dict = Depends(require_admin),
-) -> FileResponse:
+) -> Response:
     """Download a candidate's CV. Requires company or admin role."""
     p = db.get(UserProfile, user_id)
-    if not p or not p.cv_filename:
+    if not p or not p.cv_filename or not p.cv_data:
         raise HTTPException(404, "CV bulunamadı.")
 
-    path = UPLOAD_DIR / p.cv_filename
-    if not path.exists():
-        raise HTTPException(404, "CV dosyası sunucuda bulunamadı.")
-
-    # Strip the uid_ prefix to produce a friendly download filename
     display = p.cv_filename.split("_", 1)[1] if "_" in p.cv_filename else p.cv_filename
-    return FileResponse(path, media_type="application/pdf", filename=display)
+    return Response(
+        content=p.cv_data,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{display}"'},
+    )
 
 
 # ──────────────────────────────────────────────────────────────────────────────

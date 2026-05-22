@@ -9,6 +9,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    LargeBinary,
     Numeric,
     String,
     UniqueConstraint,
@@ -87,6 +88,7 @@ class UserProfile(Base):
     school: Mapped[str | None] = mapped_column(String(300), nullable=True)
     department: Mapped[str | None] = mapped_column(String(300), nullable=True)
     cv_filename: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    cv_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     education_status: Mapped[str | None] = mapped_column(String(20), nullable=True)  # student/graduate/no_degree
     class_year: Mapped[str | None] = mapped_column(String(20), nullable=True)  # prep/year_1/.../year_5
     experience_level: Mapped[str | None] = mapped_column(String(20), nullable=True)  # new_grad/junior/mid/senior
