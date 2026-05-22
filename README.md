@@ -10,7 +10,7 @@ Large Scale Systems) final, May 2026.
 
 | Component | URL |
 |---|---|
-| Frontend (Next.js) | https://job-search-application.vercel.app |
+| Frontend (Next.js) | https://job-search-application-bice.vercel.app |
 | API Gateway | https://kariyer-api-gateway.onrender.com |
 | Job Posting Service | https://kariyer-job-posting.onrender.com |
 | Job Search Service | https://kariyer-job-search.onrender.com |
