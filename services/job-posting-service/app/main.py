@@ -51,6 +51,12 @@ def on_startup() -> None:
     for attempt in range(1, max_attempts + 1):
         try:
             Base.metadata.create_all(bind=engine)
+            # Add cv_data column if it doesn't exist yet (migration)
+            with engine.connect() as conn:
+                conn.execute(__import__("sqlalchemy").text(
+                    "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS cv_data BYTEA"
+                ))
+                conn.commit()
             from . import seed
             seed.run()
             log.info("DB ready and seeded on attempt %d", attempt)
